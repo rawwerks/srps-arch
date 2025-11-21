@@ -27,16 +27,21 @@ This repo contains a **single, self-contained shell script** that intelligently 
 > ✨ **Designed to be safe to run repeatedly, and fully reversible via `--uninstall`**
 
 ```mermaid
-flowchart LR
-    A[Detect system & sudo] --> B{Plan mode?}
-    B -- yes --> C[Show actions only]
-    B -- no --> D[Install packages]
-    D --> E[Build ananicy-cpp]
-    E --> F[Install rules]
-    F --> G[Configure EarlyOOM]
-    G --> H[Apply sysctl + systemd limits]
-    H --> I[Install helpers & aliases]
-    I --> J[Summaries + diagnostics]
+flowchart TB
+    A([Detect system & sudo])
+    B{Plan mode?}
+    C[/Show actions only/]
+    D([Install packages])
+    E([Build ananicy-cpp])
+    F([Install rules])
+    G([Configure EarlyOOM])
+    H([Apply sysctl & systemd limits])
+    I([Install helpers & aliases])
+    J([Summaries + diagnostics])
+
+    A --> B
+    B -->|yes| C
+    B -->|no| D --> E --> F --> G --> H --> I --> J
 ```
 
 ---
@@ -222,17 +227,27 @@ If `ananicy-cpp` is not found in `$PATH`, SRPS will:
 > 💡 **Extending Rules:** You can extend or override these rules by adding your own files under `/etc/ananicy.d`. SRPS only owns `99-system-resource-protection.rules` and the `.srps_backup` metadata file.
 
 ```mermaid
-flowchart LR
-  subgraph Scheduling
-    A[ananicy-cpp] --> B[[Rules: community + SRPS]]
-    B --> C[[Nice / IO priority / OOM hints]]
+flowchart TB
+  subgraph Scheduler
+    A[ananicy-cpp]
+    B[[Rules: community + SRPS]]
+    C[[Nice / IO priority / OOM hints]]
+    A --> B --> C
   end
   subgraph Memory
-    D[EarlyOOM] --> E[[Prefer / Avoid targets]]
+    D[EarlyOOM]
+    E[[Prefer / Avoid targets]]
+    D --> E
   end
-  subgraph Kernel & Limits
-    F[sysctl] --> G[[VM + inotify + net + map_count]]
-    H[systemd limits] --> I[[FD / NPROC / accounting]]
+  subgraph Kernel
+    F[sysctl]
+    G[[VM / inotify / net / map_count]]
+    F --> G
+  end
+  subgraph Limits
+    H[systemd limits]
+    I[[FD / NPROC / accounting]]
+    H --> I
   end
   subgraph UX
     J[Monitoring tools]
