@@ -104,13 +104,14 @@ curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/system_resource_p
 
 ```bash
 brew tap Dicklesworthstone/system_resource_protection_script https://github.com/Dicklesworthstone/system_resource_protection_script
-brew install srps
-# Verify & plan
+brew install srps                 # installs latest tagged release
+# brew install --HEAD srps         # optional: install current main (no release checksum)
+# Verify & plan (targets latest release)
 srps-verify latest
 srps-install --plan
 ```
 
-> Note: the formula tracks the current `main` tarball. A tagged release tap will be added when the next stable release is cut.
+> Note: the default tap installs the latest release. Use `--HEAD` to track `main`, but `srps-verify` validates release assets only.
 
 ### Nix / Flakes
 

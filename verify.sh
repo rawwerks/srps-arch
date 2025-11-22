@@ -9,7 +9,15 @@ die() { echo "[verify] $*" >&2; exit 1; }
 require() { command -v "$1" >/dev/null 2>&1 || die "Missing required tool: $1"; }
 
 require curl
-require sha256sum
+
+sha_cmd=""
+if command -v sha256sum >/dev/null 2>&1; then
+  sha_cmd="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then
+  sha_cmd="shasum -a 256"
+else
+  die "Missing required tool: sha256sum or shasum"
+fi
 
 if [ "$TAG" = "latest" ]; then
   require jq
@@ -29,7 +37,7 @@ curl -fsSL "$BASE/install.sh.sha256" -o "$tmp/install.sh.sha256" || die "Failed 
 
 echo "[verify] Verifying checksum..."
 cd "$tmp"
-sha256sum -c install.sh.sha256
+$sha_cmd -c install.sh.sha256
 echo "[verify] OK"
 
 echo "[verify] To run the installer:"

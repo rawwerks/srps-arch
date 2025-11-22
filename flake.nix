@@ -12,7 +12,10 @@
         pkgs = import nixpkgs { inherit system; };
         srpsPkg = pkgs.stdenv.mkDerivation {
           pname = "srps";
-          version = "1.0.0";
+          version =
+            if self ? shortRev then self.shortRev
+            else if self ? rev then builtins.substring 0 7 self.rev
+            else "dev";
           src = ./.;
           dontBuild = true;
           installPhase = ''

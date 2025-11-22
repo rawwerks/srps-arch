@@ -1,12 +1,15 @@
 class Srps < Formula
   desc "System Resource Protection Script (Ananicy-cpp + EarlyOOM + helpers)"
   homepage "https://github.com/Dicklesworthstone/system_resource_protection_script"
-  url "https://github.com/Dicklesworthstone/system_resource_protection_script/archive/refs/heads/main.tar.gz"
-  sha256 "03bbb626743420a570d9031094e9cf61c5a72bbfd1ab675a6556bbde6dfe3c88"
+  url "https://github.com/Dicklesworthstone/system_resource_protection_script/archive/refs/tags/v1.0.0.tar.gz"
+  sha256 "caa99260255fa25745b4e571f1f590dc1c4326739a8ab6143d2754e827c6297d"
   license "MIT"
+
+  head "https://github.com/Dicklesworthstone/system_resource_protection_script.git", branch: "main"
 
   depends_on "bash"
   depends_on "git"
+  depends_on "jq"
 
   def install
     libexec.install "install.sh", "verify.sh", "README.md"
