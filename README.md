@@ -140,6 +140,17 @@ docker run --rm -it --privileged -v /:/host srps-tools --plan
 
 ---
 
+### 🚚 Deployment Options & Integrity Map
+
+- **Tagged release (recommended):** `install.sh` from `https://github.com/Dicklesworthstone/system_resource_protection_script/releases/latest/download/install.sh` or `brew install srps` (defaults to latest tag). `srps-verify latest` checks these release assets.
+- **Track main:** `brew install --HEAD srps` or `curl .../main/install.sh | bash`. This may differ from the last release; `srps-verify` will still validate the latest release, not HEAD. Use HEAD only if you accept that mismatch.
+- **Nix:** `nix run github:Dicklesworthstone/system_resource_protection_script` follows the default branch; the flake version string comes from the git rev. For a frozen release, pin the tag (e.g., `github:.../system_resource_protection_script/v1.1.1`).
+- **Docker toolbox:** Build locally with the checked-out source; intended for planning (`--plan`). Avoid mutating a host from inside the container unless you know the risks.
+- **Checksums:** Each release attaches `install.sh` and `install.sh.sha256` plus `verify.sh`. Verify with `sha256sum install.sh.sha256` (or `shasum -a 256`) and run `srps-verify latest` to confirm fetched assets match the published release.
+- **Current release:** `v1.1.1` (assets uploaded by the fixed Release Assets workflow). `v1.1.0` is marked prerelease/superseded for history but still has matching assets.
+
+---
+
 #### What Gets Removed
 
 - ✅ SRPS-created helpers (`sysmon`, `check-throttled`, `cursor-guard`, `kill-cursor`) from `/usr/local/bin`
