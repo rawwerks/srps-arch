@@ -381,6 +381,8 @@ configure_ananicy_rules() {
         sudo rm -rf /etc/ananicy.d/.git /etc/ananicy.d/.github /etc/ananicy.d/.gitignore
         # Ensure strict root ownership (cp -a from user tmp might preserve user owner)
         sudo chown -R root:root /etc/ananicy.d
+        # Quiet harmless existing-cgroup warnings by raising loglevel to error
+        sudo perl -pi -e 's/^loglevel\\s*=.*/loglevel = error/' /etc/ananicy.d/ananicy.conf 2>/dev/null || true
         rm -rf "$tmp_rules_dir"
     else
         # Ensure minimal structure if fetch failed
