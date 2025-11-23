@@ -286,15 +286,14 @@ func min(a, b int) int {
 
 // Data helpers
 func (m *Model) sortAndFilter(rows []model.Process) []model.Process {
-	// filter
-	filtered := rows
-	if m.filter != "" {
-		filtered = filtered[:0]
-		for _, r := range rows {
-			if strings.Contains(strings.ToLower(r.Command), strings.ToLower(m.filter)) {
-				filtered = append(filtered, r)
-			}
+	// copy to avoid mutating incoming slice
+	filtered := make([]model.Process, 0, len(rows))
+	filterLower := strings.ToLower(m.filter)
+	for _, r := range rows {
+		if filterLower != "" && !strings.Contains(strings.ToLower(r.Command), filterLower) {
+			continue
 		}
+		filtered = append(filtered, r)
 	}
 	// sort
 	switch m.sortKey {
