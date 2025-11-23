@@ -32,19 +32,19 @@ This repo contains a **single, self-contained shell script** that intelligently 
 
 ### 📥 Install (or Update)
 
-Recommended (with integrity check):
+Recommended (with integrity check, cache-busting to avoid stale CDN copies):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/system_resource_protection_script/main/verify.sh -o verify.sh
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/system_resource_protection_script/main/verify.sh?cb=$(date +%s)" -o verify.sh
 bash verify.sh latest          # downloads release install.sh + checksum and verifies
 ./install.sh --plan            # preview (dry-run)
 ./install.sh --install         # apply (or just ./install.sh)
 ```
 
-Quick (no verification):
+Quick (no verification; also cache-busted):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/system_resource_protection_script/main/install.sh | bash
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/system_resource_protection_script/main/install.sh?cb=$(date +%s)" | bash
 ```
 
 #### What Happens During Install
@@ -69,7 +69,7 @@ The script performs **6 steps**:
 To undo SRPS configuration and restore backups where possible:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/system_resource_protection_script/main/install.sh -o install.sh
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/system_resource_protection_script/main/install.sh?cb=$(date +%s)" -o install.sh
 bash install.sh --uninstall
 ```
 
