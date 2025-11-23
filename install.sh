@@ -1149,24 +1149,62 @@ EOF
 # --- sysmon ------------------------------------------------
     local sysmon="/usr/local/bin/sysmon"
     local sysmon_go="/usr/local/bin/sysmon-go"
-    local latest_bin_url="https://github.com/Dicklesworthstone/system_resource_protection_script/releases/latest/download/sysmon-linux-amd64"
+    local ref="${SRPS_SYSMON_REF:-main}"
 
-    if [ "$DRY_RUN" -eq 1 ]; then
-        print_info "[plan mode] Would download sysmon-go binary to $sysmon_go and link $sysmon; fallback to bash sysmon if download fails"
-    else
+    install_sysmon_go(){
+        local build_ref="$1"
+        local goarch
+        case "$(uname -m)" in
+            x86_64|amd64) goarch="amd64" ;;
+            aarch64|arm64) goarch="arm64" ;;
+            *) goarch="$(uname -m)" ;;
+        esac
+
+        # 1) Try prebuilt release asset
+        local bin_url="https://github.com/Dicklesworthstone/system_resource_protection_script/releases/download/${build_ref}/sysmon-linux-${goarch}"
+        local tmpbin
         tmpbin=$(mktemp)
-        if curl -fsSL "$latest_bin_url" -o "$tmpbin"; then
+        if curl -fsSL "$bin_url" -o "$tmpbin"; then
             sudo install -m 0755 "$tmpbin" "$sysmon_go"
-            sudo ln -sf "$sysmon_go" "$sysmon"
-            print_success "Installed sysmon-go binary (linked as sysmon)"
-        else
-            print_warning "Failed to download sysmon-go; installing legacy bash sysmon instead"
-            install_bash_sysmon "$sysmon"
+            rm -f "$tmpbin"
+            return 0
         fi
         rm -f "$tmpbin"
+
+        # 2) Build from source tarball (needs Go)
+        if ! command -v go >/dev/null 2>&1; then
+            return 1
+        fi
+        local tmpdir srcdir tar_url
+        tmpdir=$(mktemp -d)
+        tar_url="https://github.com/Dicklesworthstone/system_resource_protection_script/archive/refs/heads/${build_ref}.tar.gz"
+        if ! curl -fsSL "$tar_url" | tar xz -C "$tmpdir"; then
+            rm -rf "$tmpdir"; return 1
+        fi
+        srcdir=$(find "$tmpdir" -maxdepth 1 -type d -name "system_resource_protection_script-*" | head -1)
+        if [ -z "$srcdir" ]; then rm -rf "$tmpdir"; return 1; fi
+        if GOOS=linux GOARCH="$goarch" go build -C "$srcdir" -o "$tmpdir/sysmon-go" ./cmd/sysmon >/dev/null 2>&1; then
+            sudo install -m 0755 "$tmpdir/sysmon-go" "$sysmon_go"
+            rm -rf "$tmpdir"
+            return 0
+        fi
+        rm -rf "$tmpdir"
+        return 1
+    }
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        print_info "[plan mode] Would install sysmon-go binary (or build from source) to $sysmon_go and link $sysmon; fallback to bash sysmon if needed"
+    else
+        if install_sysmon_go "$ref"; then
+            sudo ln -sf "$sysmon_go" "$sysmon"
+            print_success "sysmon-go installed and linked to $sysmon"
+        else
+            print_warning "sysmon-go unavailable (download/build failed); installing legacy bash sysmon"
+            install_bash_sysmon "$sysmon"
+        fi
     fi
 
-    # Always ensure legacy bash sysmon is available as fallback
+    # Ensure legacy bash sysmon exists as safety net
     if [ ! -x "$sysmon" ] || ! sudo grep -q "system_resource_protection_script" "$sysmon" 2>/dev/null; then
         install_bash_sysmon "$sysmon"
     fi
