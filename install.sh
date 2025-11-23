@@ -175,8 +175,13 @@ detect_system() {
     fi
 
     print_info "Validating sudo credentials..."
-    if ! sudo -v; then
-        die "Failed to validate sudo privileges."
+    if sudo -n true 2>/dev/null; then
+        print_info "sudo: passwordless access confirmed"
+    else
+        print_info "sudo: password required, validating credentials..."
+        if ! sudo -v; then
+            die "Failed to validate sudo privileges."
+        fi
     fi
 
     if command -v apt-get >/dev/null 2>&1; then
