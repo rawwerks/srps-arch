@@ -851,7 +851,9 @@ collect_gpu(){
   local tcmd=""
   if command -v timeout >/dev/null 2>&1; then tcmd="timeout 2"; fi
   if command -v nvidia-smi >/dev/null 2>&1; then
+    set +o pipefail
     mapfile -t GPUS < <(${tcmd:-} nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -n 2)
+    set -o pipefail
     local first=1 gtxt="" line idx name util mused mtotal temp mpct
     for line in "${GPUS[@]}"; do
       IFS=',' read -r idx name util mused mtotal temp <<<"$line"
@@ -866,7 +868,9 @@ collect_gpu(){
   fi
 
   if command -v rocm-smi >/dev/null 2>&1; then
-    mapfile -t GPUS < <(${tcmd:-} rocm-smi --showuse --showtemp 2>/dev/null | grep -E 'GPU\[[0-9]+\]' | head -n 2)
+    set +o pipefail
+    mapfile -t GPUS < <(${tcmd:-} rocm-smi --showuse --showtemp 2>/dev/null | grep -E 'GPU\\[[0-9]+\\]' | head -n 2)
+    set -o pipefail
     local first=1 gtxt="" line idx util temp
     for line in "${GPUS[@]}"; do
       idx=$(echo "$line" | grep -oE 'GPU\[[0-9]+\]' | tr -dc '0-9')
@@ -912,8 +916,24 @@ mem_line(){
 " "$(awk -v v="$used" 'BEGIN{printf "%.1f", v/1048576}')" "$(awk -v v="$total" 'BEGIN{printf "%.1f", v/1048576}')" "$spct"
 }
 
-collect_cgroups(){ cgroup_txt=""; cgroup_json="["; cf=1; ps -eo cgroup,%cpu --sort=-%cpu --no-headers | head -n 50 | awk '{cg=$1; gsub(/^.+:/,"",cg); if(cg=="-") cg="unknown"; n=split(cg,a,"/"); name=a[n]; if(name=="") name="/"; cpu=$2; sum[name]+=cpu} END{for(n in sum) print sum[n],n}' | sort -nr | head -n 5 | while read -r cpu name; do cgroup_txt+=$(printf "%-20s CPU:%5.1f%%
-" "$name" "$cpu"); [ $cf -eq 1 ] || cgroup_json+=","; cf=0; cgroup_json+=$(printf '{"cgroup":"%s","cpu":%.1f}' "$name" "$cpu"); done; cgroup_json+="]"; }
+collect_cgroups(){
+  cgroup_txt=""
+  cgroup_json="["
+  cf=1
+  set +o pipefail
+  while read -r cpu name; do
+    cgroup_txt+=$(printf "%-20s CPU:%5.1f%%\n" "$name" "$cpu")
+    [ $cf -eq 1 ] || cgroup_json+=","; cf=0
+    cgroup_json+=$(printf '{"cgroup":"%s","cpu":%.1f}' "$name" "$cpu")
+  done < <(
+    ps -eo cgroup,%cpu --sort=-%cpu --no-headers \
+      | head -n 50 \
+      | awk '{cg=$1; gsub(/^.+:/,"",cg); if(cg=="-") cg="unknown"; n=split(cg,a,"/"); name=a[n]; if(name=="") name="/"; cpu=$2; sum[name]+=cpu} END{for(n in sum) print sum[n],n}' \
+      | sort -nr | head -n 5
+  )
+  set -o pipefail
+  cgroup_json+="]"
+}
 
 print_cgroups(){ if [ "$percore" -eq 1 ] && [ -n "$cgroup_txt" ]; then printf "%sTop cgroups (CPU)%s
 %s
@@ -925,9 +945,11 @@ print_top_cpu(){ printf "%sTop CPU (live)%s  comm pid ni cpu mem
 " "$comm" "$pid" "$ni" "$cpu" "$mem"; done <<< "${view:-$snapshot}"; printf "
 "; }
 
-print_throttled(){ printf "%sThrottled (nice>0, live)%s
-" "$(c 2)" "$(r)"; ps -eo comm,pid,ni,%cpu,%mem --sort=-ni --no-headers | awk '$3>0 {printf "%-18s %-6s NI:%3s CPU:%5s%% MEM:%5s%%
-", $1, $2, $3, $4, $5}' | head -n 8; }
+print_throttled(){
+  printf "%sThrottled (nice>0, live)%s\n" "$(c 2)" "$(r)"
+  ps -eo comm,pid,ni,%cpu,%mem --sort=-ni --no-headers \
+    | awk '$3>0 {printf "%-18s %-6s NI:%3s CPU:%5s%% MEM:%5s%%\n", $1, $2, $3, $4, $5; if(++c==8) exit}'
+}
 
 print_historical(){ printf "
 %sHistorical hogs (since start)%s
@@ -999,7 +1021,7 @@ print_footer(){ runtime=$(( $(date +%s) - start_ts )); printf "
 prev_total=""; prev_idle=""; json_warmup=0; adapt_interval_if_needed
 
 while true; do
-  snapshot=$(ps -eo pid,ni,pcpu,pmem,comm --sort=-pcpu --no-headers | awk '{printf "%s|%s|%s|%s|%s\\n",$1,$2,$3,$4,$5}' | head -n 8)
+snapshot=$(ps -eo pid,ni,pcpu,pmem,comm --sort=-pcpu --no-headers | awk 'NR<=8 {printf "%s|%s|%s|%s|%s\n",$1,$2,$3,$4,$5}')
   view="$snapshot"
 
   while IFS='|' read -r pid ni cpu mem comm; do
@@ -1048,13 +1070,15 @@ while true; do
   if [ "$json_mode" = "1" ]; then
     if [ $json_warmup -eq 0 ]; then json_warmup=1; sleep "$interval"; continue; fi
     esc(){ printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g; s/\"/\\\\\"/g'; }
-    top_json="["; tf=1
-    while IFS='|' read -r pid ni cpu mem comm; do
-      [ -n "$comm" ] || continue
-      [ $tf -eq 1 ] || top_json+=","; tf=0
-      top_json+=$(printf '{"cmd":"%s","pid":%s,"nice":%s,"cpu":%s,"mem":%s}' "$(esc "$comm")" "$pid" "$ni" "$cpu" "$mem")
-    done <<< "$view"
-    top_json+="]"
+  top_json="["; tf=1
+  while IFS='|' read -r pid ni cpu mem comm; do
+    [ -n "$comm" ] || continue
+    clean_ni="$ni"
+    if ! [[ "$clean_ni" =~ ^-?[0-9]+$ ]]; then clean_ni=0; fi
+    [ $tf -eq 1 ] || top_json+=","; tf=0
+    top_json+=$(printf '{"cmd":"%s","pid":%s,"nice":%s,"cpu":%s,"mem":%s}' "$(esc "$comm")" "$pid" "$clean_ni" "$cpu" "$mem")
+  done <<< "$view"
+  top_json+="]"
 
     hist_json="["; hf=1
     for k in "${!cpu_accu[@]}"; do
