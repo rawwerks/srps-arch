@@ -377,6 +377,8 @@ configure_ananicy_rules() {
     if [ "$fetch_success" -eq 1 ]; then
         # Move fetched rules into place (using /. to include hidden files)
         sudo cp -a "$tmp_rules_dir"/. /etc/ananicy.d/ 2>/dev/null || true
+        # Drop any embedded VCS metadata that confuses ananicy parser
+        sudo rm -rf /etc/ananicy.d/.git /etc/ananicy.d/.github /etc/ananicy.d/.gitignore
         # Ensure strict root ownership (cp -a from user tmp might preserve user owner)
         sudo chown -R root:root /etc/ananicy.d
         rm -rf "$tmp_rules_dir"
@@ -393,95 +395,95 @@ configure_ananicy_rules() {
 # ============================================================
 
 # --- Rust / Cargo / C++ toolchain: push to background ----------
-NAME=cargo                      NICE=19  SCHED=idle   IOCLASS=idle
-NAME=rustc                      NICE=19  SCHED=idle   IOCLASS=idle
-NAME=rust-analyzer              NICE=15  SCHED=batch  IOCLASS=best-effort
-NAME=cc1plus                    NICE=15  SCHED=batch  IOCLASS=idle
-NAME=cc1                        NICE=15  SCHED=batch  IOCLASS=idle
-NAME=ld                         NICE=15  SCHED=batch  IOCLASS=idle
-NAME=lld                        NICE=15  SCHED=batch  IOCLASS=idle
-NAME=mold                       NICE=15  SCHED=batch  IOCLASS=idle
-NAME=as                         NICE=15  SCHED=batch  IOCLASS=idle
+{"name": "cargo","nice": 19,"sched": "idle","ioclass": "idle"}
+{"name": "rustc","nice": 19,"sched": "idle","ioclass": "idle"}
+{"name": "rust-analyzer","nice": 15,"sched": "batch","ioclass": "best-effort"}
+{"name": "cc1plus","nice": 15,"sched": "batch","ioclass": "idle"}
+{"name": "cc1","nice": 15,"sched": "batch","ioclass": "idle"}
+{"name": "ld","nice": 15,"sched": "batch","ioclass": "idle"}
+{"name": "lld","nice": 15,"sched": "batch","ioclass": "idle"}
+{"name": "mold","nice": 15,"sched": "batch","ioclass": "idle"}
+{"name": "as","nice": 15,"sched": "batch","ioclass": "idle"}
 
 # --- GNU / LLVM compilers, build tools ------------------------
-NAME=gcc                        NICE=10  SCHED=batch  IOCLASS=idle
-NAME=g++                        NICE=10  SCHED=batch  IOCLASS=idle
-NAME=clang                      NICE=10  SCHED=batch  IOCLASS=idle
-NAME=clang++                    NICE=10  SCHED=batch  IOCLASS=idle
-NAME=make                       NICE=10  SCHED=batch  IOCLASS=idle
-NAME=ninja                      NICE=10  SCHED=batch  IOCLASS=idle
-NAME=cmake                      NICE=10  SCHED=batch  IOCLASS=idle
+{"name": "gcc","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "g++","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "clang","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "clang++","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "make","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "ninja","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "cmake","nice": 10,"sched": "batch","ioclass": "idle"}
 
 # --- Node.js and bundlers -------------------------------------
-NAME=node                       NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=100
-NAME=node.exe                   NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=100
-NAME=npm                        NICE=10  SCHED=batch  IOCLASS=best-effort
-NAME=yarn                       NICE=10  SCHED=batch  IOCLASS=best-effort
-NAME=pnpm                       NICE=10  SCHED=batch  IOCLASS=best-effort
-NAME=webpack                    NICE=10  SCHED=batch  IOCLASS=best-effort
-NAME=rollup                     NICE=10  SCHED=batch  IOCLASS=best-effort
-NAME=vite                       NICE=10  SCHED=batch  IOCLASS=best-effort
+{"name": "node","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 100}
+{"name": "node.exe","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 100}
+{"name": "npm","nice": 10,"sched": "batch","ioclass": "best-effort"}
+{"name": "yarn","nice": 10,"sched": "batch","ioclass": "best-effort"}
+{"name": "pnpm","nice": 10,"sched": "batch","ioclass": "best-effort"}
+{"name": "webpack","nice": 10,"sched": "batch","ioclass": "best-effort"}
+{"name": "rollup","nice": 10,"sched": "batch","ioclass": "best-effort"}
+{"name": "vite","nice": 10,"sched": "batch","ioclass": "best-effort"}
 
 # --- Browsers (prevent them from dominating CPU/RAM) ----------
-NAME=chrome                     NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=chromium                   NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=chrome.exe                 NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=brave                      NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=brave-browser              NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=firefox                    NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=firefox-esr                NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=msedge                     NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
+{"name": "chrome","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "chromium","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "chrome.exe","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "brave","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "brave-browser","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "firefox","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "firefox-esr","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "msedge","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
 
 # --- Electron apps --------------------------------------------
-NAME=slack                      NICE=10  SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=200
-NAME=discord                    NICE=10  SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=200
-NAME=teams                      NICE=10  SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=200
-NAME=zoom                       NICE=5   SCHED=other  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=code                       NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=vscode                     NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=electron                   NICE=5   SCHED=batch  IOCLASS=best-effort
+{"name": "slack","nice": 10,"sched": "batch","ioclass": "best-effort","oom_score_adj": 200}
+{"name": "discord","nice": 10,"sched": "batch","ioclass": "best-effort","oom_score_adj": 200}
+{"name": "teams","nice": 10,"sched": "batch","ioclass": "best-effort","oom_score_adj": 200}
+{"name": "zoom","nice": 5,"sched": "other","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "code","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "vscode","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "electron","nice": 5,"sched": "batch","ioclass": "best-effort"}
 
 # --- Cursor IDE (balanced, but not allowed to eat machine) ----
-NAME=cursor                     NICE=2   SCHED=other  IOCLASS=best-effort  OOM_SCORE_ADJ=50
-NAME=Cursor                     NICE=2   SCHED=other  IOCLASS=best-effort  OOM_SCORE_ADJ=50
-NAME=cursor.exe                 NICE=2   SCHED=other  IOCLASS=best-effort  OOM_SCORE_ADJ=50
+{"name": "cursor","nice": 2,"sched": "other","ioclass": "best-effort","oom_score_adj": 50}
+{"name": "Cursor","nice": 2,"sched": "other","ioclass": "best-effort","oom_score_adj": 50}
+{"name": "cursor.exe","nice": 2,"sched": "other","ioclass": "best-effort","oom_score_adj": 50}
 
 # --- Language servers & tooling -------------------------------
-NAME=tsserver                   NICE=8   SCHED=batch  IOCLASS=best-effort
-NAME=typescript-language-server NICE=10 SCHED=batch  IOCLASS=idle
-NAME=eslint                     NICE=10  SCHED=batch  IOCLASS=idle
-NAME=prettier                   NICE=10  SCHED=batch  IOCLASS=idle
-NAME=pyright-langserver         NICE=10  SCHED=batch  IOCLASS=idle
-NAME=rust-analyzer              NICE=15  SCHED=batch  IOCLASS=best-effort
+{"name": "tsserver","nice": 8,"sched": "batch","ioclass": "best-effort"}
+{"name": "typescript-language-server","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "eslint","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "prettier","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "pyright-langserver","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "rust-analyzer","nice": 15,"sched": "batch","ioclass": "best-effort"}
 
 # --- Python / data science ------------------------------------
-NAME=python                     NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=python3                    NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=ipython                    NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=jupyter-notebook           NICE=5   SCHED=other  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=jupyter-lab                NICE=5   SCHED=other  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=pip                        NICE=10  SCHED=batch  IOCLASS=idle
-NAME=pip3                       NICE=10  SCHED=batch  IOCLASS=idle
+{"name": "python","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "python3","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "ipython","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "jupyter-notebook","nice": 5,"sched": "other","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "jupyter-lab","nice": 5,"sched": "other","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "pip","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "pip3","nice": 10,"sched": "batch","ioclass": "idle"}
 
 # --- Java / JVM-heavy builds ---------------------------------
-NAME=java                       NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=java.exe                   NICE=5   SCHED=batch  IOCLASS=best-effort  OOM_SCORE_ADJ=150
-NAME=gradle                     NICE=10  SCHED=batch  IOCLASS=idle
-NAME=mvn                        NICE=10  SCHED=batch  IOCLASS=idle
-NAME=sbt                        NICE=10  SCHED=batch  IOCLASS=idle
+{"name": "java","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "java.exe","nice": 5,"sched": "batch","ioclass": "best-effort","oom_score_adj": 150}
+{"name": "gradle","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "mvn","nice": 10,"sched": "batch","ioclass": "idle"}
+{"name": "sbt","nice": 10,"sched": "batch","ioclass": "idle"}
 
 # --- Containers & virtualization ------------------------------
-NAME=dockerd                    NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=containerd                 NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=podman                     NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=virt-qemu                  NICE=5   SCHED=batch  IOCLASS=best-effort
-NAME=qemu-system-x86_64         NICE=5   SCHED=batch  IOCLASS=best-effort
-NAME=virsh                      NICE=5   SCHED=batch  IOCLASS=best-effort
+{"name": "dockerd","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "containerd","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "podman","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "virt-qemu","nice": 5,"sched": "batch","ioclass": "best-effort"}
+{"name": "qemu-system-x86_64","nice": 5,"sched": "batch","ioclass": "best-effort"}
+{"name": "virsh","nice": 5,"sched": "batch","ioclass": "best-effort"}
 
 # --- Misc system-friendly tweaks ------------------------------
-NAME=rg                         NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=ag                         NICE=5   SCHED=other  IOCLASS=best-effort
-NAME=ripgrep                    NICE=5   SCHED=other  IOCLASS=best-effort
+{"name": "rg","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "ag","nice": 5,"sched": "other","ioclass": "best-effort"}
+{"name": "ripgrep","nice": 5,"sched": "other","ioclass": "best-effort"}
 EOF
 
     printf '%s\n' "${backup_dir}" | sudo tee /etc/ananicy.d/.srps_backup >/dev/null
