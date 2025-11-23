@@ -947,8 +947,8 @@ print_top_cpu(){ printf "%sTop CPU (live)%s  comm pid ni cpu mem
 
 print_throttled(){
   printf "%sThrottled (nice>0, live)%s\n" "$(c 2)" "$(r)"
-  ps -eo comm,pid,ni,%cpu,%mem --sort=-ni --no-headers \
-    | awk '$3>0 {printf "%-18s %-6s NI:%3s CPU:%5s%% MEM:%5s%%\n", $1, $2, $3, $4, $5; if(++c==8) exit}'
+  ps -eo pid,ni,%cpu,%mem,comm --sort=-ni --no-headers \
+    | awk '$2>0 {comm=$5; for(i=6;i<=NF;i++) comm=comm" "$i; printf "%-18s %-6s NI:%3s CPU:%5s%% MEM:%5s%%\n", comm, $1, $2, $3, $4; if(++c==8) exit}'
 }
 
 print_historical(){ printf "
@@ -1021,7 +1021,8 @@ print_footer(){ runtime=$(( $(date +%s) - start_ts )); printf "
 prev_total=""; prev_idle=""; json_warmup=0; adapt_interval_if_needed
 
 while true; do
-snapshot=$(ps -eo pid,ni,pcpu,pmem,comm --sort=-pcpu --no-headers | awk 'NR<=8 {printf "%s|%s|%s|%s|%s\n",$1,$2,$3,$4,$5}')
+snapshot=$(ps -eo pid,ni,pcpu,pmem,comm --sort=-pcpu --no-headers \
+  | awk 'NR<=8 {comm=$5; for(i=6;i<=NF;i++) comm=comm" "$i; printf "%s|%s|%s|%s|%s\n",$1,$2,$3,$4,comm}')
   view="$snapshot"
 
   while IFS='|' read -r pid ni cpu mem comm; do
