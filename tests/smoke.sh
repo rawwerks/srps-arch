@@ -12,7 +12,8 @@ extract() {
 import re, sys, pathlib
 marker, out = sys.argv[1], sys.argv[2]
 text = pathlib.Path("install.sh").read_text()
-pattern = re.escape(marker) + r"\n(.*?)\nEOF"
+# Allow leading whitespace/indentation before the marker
+pattern = r"(?m)^[ \t]*" + re.escape(marker) + r"\n(.*?)\n[ \t]*EOF"
 m = re.search(pattern, text, re.S)
 if not m:
     sys.exit(f"missing script for marker: {marker}")
