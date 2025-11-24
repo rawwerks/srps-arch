@@ -22,17 +22,18 @@ if "install_" in marker or "_doctor" in marker or "_reload" in marker:
     # We just use a flexible regex for heredoc start
     # Match: ... marker ... <<'EOF' ... content ... EOF
     # We allow any characters between marker and <<'EOF' (like "sudo tee...")
-    pattern = re.escape(marker) + r".*?<<'EOF'\n(.*?)\n[ \t]*EOF"
+    # Allow optional space between << and 'EOF'
+    pattern = re.escape(marker) + r".*?<<[ \t]*'EOF'\n(.*?)\n[ \t]*EOF"
     m = re.search(pattern, text, re.S)
 else:
     # Fallback to exact previous line match (allowing for indentation)
-    pattern = r"(?m)^[ \t]*" + re.escape(marker) + r"\n(.*?)\n[ \t]*EOF"
+    pattern = r"(?m)^[ \t]*" + re.escape(marker) + r"[ \t]*<<[ \t]*'EOF'\n(.*?)\n[ \t]*EOF"
     m = re.search(pattern, text, re.S)
 
 if not m:
     # Fallback: try ignoring indentation on the marker line itself in the regex
     # This handles the case where "marker" is a function definition far above the heredoc
-    pattern = r"(?m)^[ \t]*" + re.escape(marker) + r".*?<<'EOF'\n(.*?)\n[ \t]*EOF"
+    pattern = r"(?m)^[ \t]*" + re.escape(marker) + r".*?<<[ \t]*'EOF'\n(.*?)\n[ \t]*EOF"
     m = re.search(pattern, text, re.S)
 
 if not m:
