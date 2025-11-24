@@ -22,6 +22,14 @@ jobs:
       - name: Dry-run install plan (no changes)
         run: bash install.sh --plan
 
+      - name: Verify SHA256SUMS is up-to-date
+        run: |
+          bash scripts/update_checksums.sh
+          git diff --exit-code SHA256SUMS || {
+            echo "::error file=SHA256SUMS::SHA256SUMS is out of sync. Please run 'bash scripts/update_checksums.sh' and commit the changes."
+            exit 1
+          }
+
   nix:
     runs-on: ubuntu-latest
     steps:
