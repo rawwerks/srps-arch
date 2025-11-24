@@ -1303,8 +1303,11 @@ EOF
 MAX_NODE=${MAX_NODE:-25}
 MAX_CPU=${MAX_CPU:-85}
 
-node_count=$(pgrep -c -f "node(\.exe)?([[:space:]]|$)" 2>/dev/null || echo 0)
-cpu_usage=$(awk -F'[, ]+' '/Cpu\(s\)/ {print 100-$8; exit}' < <(LC_ALL=C top -bn1) 2>/dev/null || echo 0)
+node_count=$(pgrep -c -f "node(\.exe)?([[:space:]]|$)" 2>/dev/null || true)
+[ -z "$node_count" ] && node_count=0
+
+cpu_usage=$(awk -F'[, ]+' '/Cpu\(s\)/ {print 100-$8; exit}' < <(LC_ALL=C top -bn1) 2>/dev/null || true)
+[ -z "$cpu_usage" ] && cpu_usage=0
 
 if command -v tput >/dev/null 2>&1; then
   c(){ tput setaf "$1"; }; b(){ tput bold; }; r(){ tput sgr0; }
