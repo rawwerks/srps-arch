@@ -1336,18 +1336,26 @@ if [ "${SRPS_JSON:-0}" = "1" ]; then
   if [ "$node_count" -gt "$MAX_NODE" ] 2>/dev/null; then
     pids=$(ps -eo pid,etimes,comm | grep -E "node(\.exe)?$" | sort -rn -k2 | awk '{print $1}')
     keep=$MAX_NODE
-    kill_list=$(echo "$pids" | head -n -"${keep}" 2>/dev/null || true)
-    if [ -n "$kill_list" ]; then
-        trimmed=$(printf "%s\n" "$kill_list" | wc -l)
-        printf "%s\n" "$kill_list" | xargs -r kill -TERM 2>/dev/null
-        sleep 1
-        printf "%s\n" "$kill_list" | xargs -r kill -KILL 2>/dev/null
+    # Use filter to avoid echoing empty line
+    if [ -n "$pids" ]; then
+        kill_list=$(echo "$pids" | head -n -"${keep}" 2>/dev/null || true)
+        if [ -n "$kill_list" ]; then
+            # Kill logic
+            echo "$kill_list" | xargs -r kill -TERM 2>/dev/null
+            sleep 1
+            echo "$kill_list" | xargs -r kill -KILL 2>/dev/null
+            trimmed=$(echo "$kill_list" | wc -l | tr -d '[:space:]')
+        fi
     fi
   fi
   reniced=0
   if [ "$cpu_usage" -gt "$MAX_CPU" ] 2>/dev/null; then
-    reniced=$(ps -eo pid,%cpu,ni,comm --sort=-%cpu | head -n 10 | awk '{print $1}' | wc -l)
-    ps -eo pid,%cpu,ni,comm --sort=-%cpu | head -n 10 | awk '{print $1}' | xargs -r renice 19 -p 2>/dev/null
+    # Renice logic
+    renice_list=$(ps -eo pid,%cpu,ni,comm --sort=-%cpu | head -n 10 | awk '{print $1}')
+    if [ -n "$renice_list" ]; then
+        echo "$renice_list" | xargs -r renice 19 -p 2>/dev/null
+        reniced=$(echo "$renice_list" | wc -l | tr -d '[:space:]')
+    fi
   fi
   printf '{"node_count":%s,"max_node":%s,"trimmed":%s,"cpu_usage":%s,"max_cpu":%s,"reniced":%s}' \
     "$node_count" "$MAX_NODE" "$trimmed" "$cpu_usage" "$MAX_CPU" "$reniced"
