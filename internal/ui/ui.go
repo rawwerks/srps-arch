@@ -92,6 +92,11 @@ type Model struct {
 	throttleCount map[string]int
 	activeTab     int // 0=Dashboard, 1=Analysis
 	showHelp      bool
+	paused        bool
+	showIOPanels  bool
+	showGPU       bool
+	showBatt      bool
+	statusMsg     string
 
 	jsonFile string
 }
@@ -110,6 +115,9 @@ func New(cfg config.Config) *Model {
 		perCoreHist:   make(map[int][]float64),
 		cumulativeCPU: make(map[string]float64),
 		throttleCount: make(map[string]int),
+		showIOPanels:  true,
+		showGPU:       cfg.EnableGPU,
+		showBatt:      cfg.EnableBatt,
 		jsonFile:      os.Getenv("SRPS_SYSMON_JSON_FILE"),
 	}
 }
@@ -163,6 +171,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.sortKey = "cpu"
 			}
+		case "g":
+			m.showGPU = !m.showGPU
+			m.statusMsg = fmt.Sprintf("GPU panels %s", onOff(m.showGPU))
+		case "b":
+			m.showBatt = !m.showBatt
+			m.statusMsg = fmt.Sprintf("Battery panel %s", onOff(m.showBatt))
+		case "i":
+			m.showIOPanels = !m.showIOPanels
+			m.statusMsg = fmt.Sprintf("IO/FD panels %s", onOff(m.showIOPanels))
+		case "f":
+			m.paused = !m.paused
+			m.statusMsg = fmt.Sprintf("Updates %s", onOff(!m.paused))
+		case "I":
+			if len(m.latest.Top) > 0 {
+				p := m.latest.Top[0]
+				m.statusMsg = fmt.Sprintf("ionice tip: sudo ionice -c3 -p %d  (# %s)", p.PID, truncate(p.Command, 16))
+			} else {
+				m.statusMsg = "ionice tip: sudo ionice -c3 -p <pid>"
+			}
 		case "/":
 			m.inputMode = true
 			m.inputBuf = nil
@@ -174,6 +201,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tickMsg:
+		if m.paused {
+			return m, tickCmd()
+		}
 		select {
 		case samp, ok := <-m.stream:
 			if ok {
@@ -260,7 +290,11 @@ func (m *Model) View() string {
 		histTab = activeTabStyle.Render(" 2: Analysis ")
 	}
 
-	info := subtleStyle.Render(fmt.Sprintf("Sort:%s %s", strings.ToUpper(m.sortKey), filterTxt))
+	pausedTxt := ""
+	if m.paused {
+		pausedTxt = " | PAUSED"
+	}
+	info := subtleStyle.Render(fmt.Sprintf("Sort:%s%s %s", strings.ToUpper(m.sortKey), pausedTxt, filterTxt))
 	headerRight := subtleStyle.Render(s.Timestamp.Format("15:04:05"))
 
 	tabs := lipgloss.JoinHorizontal(lipgloss.Bottom, dashTab, " ", histTab)
@@ -288,7 +322,10 @@ func (m *Model) View() string {
 		content = m.renderAnalysis(s)
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, content)
+	footer := subtleStyle.Render(fmt.Sprintf("tab dashboards | s sort | / filter | g gpu:%s i io:%s b batt:%s f pause:%s | ? help | %s",
+		onOff(m.showGPU), onOff(m.showIOPanels), onOff(m.showBatt), onOff(!m.paused), m.statusMsg))
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, content, footer)
 }
 
 func (m *Model) renderDashboard(s model.Sample) string {
@@ -303,7 +340,7 @@ func (m *Model) renderDashboard(s model.Sample) string {
 	memVal := pct(s.Memory.UsedBytes, s.Memory.TotalBytes)
 	memGauge := renderGauge("MEM", memVal, "#BD93F9") // Purple
 	memGraph := renderSparklinePct(m.memHist, 20, "#BD93F9")
-	memDetails := subtleStyle.Render(fmt.Sprintf("%.1f/%.1f GB", bytesToGiB(s.Memory.UsedBytes), bytesToGiB(s.Memory.TotalBytes)))
+	memDetails := subtleStyle.Render(fmt.Sprintf("%.1f/%.1f GB | cache %.1f GB | buf %.1f GB", bytesToGiB(s.Memory.UsedBytes), bytesToGiB(s.Memory.TotalBytes), bytesToGiB(s.Memory.Cached), bytesToGiB(s.Memory.Buffers)))
 	memBlock := lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.JoinHorizontal(lipgloss.Bottom, memGauge, "  ", memGraph),
 		memDetails)
@@ -312,7 +349,7 @@ func (m *Model) renderDashboard(s model.Sample) string {
 	// Swap & Load
 	swapVal := pct(s.Memory.SwapUsed, s.Memory.SwapTotal)
 	swapGauge := renderGauge("SWAP", swapVal, warningColor)
-	loadStr := fmt.Sprintf("LOAD: %.2f %.2f %.2f", s.CPU.Load1, s.CPU.Load5, s.CPU.Load15)
+	loadStr := fmt.Sprintf("LOAD: %.2f (%.0f cores) 5m %.2f 15m %.2f", s.CPU.Load1, float64(len(s.CPU.PerCore)), s.CPU.Load5, s.CPU.Load15)
 	miscBlock := lipgloss.JoinVertical(lipgloss.Left, swapGauge, "\n", valStyle.Render(loadStr))
 	miscCard := cardStyle.Render(miscBlock)
 
@@ -332,28 +369,42 @@ func (m *Model) renderDashboard(s model.Sample) string {
 	// Disk
 	diskRSpark := renderSparklineAuto(m.diskReadHist, 15, warningColor)
 	diskWSpark := renderSparklineAuto(m.diskWriteHist, 15, secondaryColor)
+	topDevs := topDevices(s.IO.PerDevice, 3)
+	devLines := ""
+	for _, d := range topDevs {
+		devLines += fmt.Sprintf("%-6s R%5.1f W%5.1f MB/s\n", d.Name, d.ReadMBs, d.WriteMBs)
+	}
+	if devLines == "" {
+		devLines = subtleStyle.Render("no device stats")
+	}
 	diskBlock := lipgloss.JoinVertical(lipgloss.Left,
-		fmt.Sprintf("R %5.1f MB/s %s", s.IO.DiskReadMBs, diskRSpark),
-		fmt.Sprintf("W %5.1f MB/s %s", s.IO.DiskWriteMBs, diskWSpark),
+		fmt.Sprintf("Total R %5.1f MB/s %s", s.IO.DiskReadMBs, diskRSpark),
+		fmt.Sprintf("Total W %5.1f MB/s %s", s.IO.DiskWriteMBs, diskWSpark),
+		subtleStyle.Render("Top devices:"),
+		devLines,
 	)
 	diskCard := cardStyle.Render(lipgloss.JoinVertical(lipgloss.Left, labelStyle.Render("DISK I/O"), diskBlock))
 
 	// GPU & Battery
 	extraContent := ""
-	if len(s.GPUs) > 0 {
+	if m.showGPU && len(s.GPUs) > 0 {
 		for _, g := range s.GPUs {
 			extraContent += fmt.Sprintf("GPU: %s\nUse: %3.0f%% | %2.0f°C\nMem: %3.0f/%3.0f MB\n",
 				truncate(g.Name, 10), g.Util, g.TempC, g.MemUsedMB, g.MemTotalMB)
 		}
 	}
-	if s.Battery.Percent > 0 {
+	if m.showBatt && s.Battery.Percent > 0 {
 		if extraContent != "" {
 			extraContent += "\n"
 		}
 		extraContent += fmt.Sprintf("BATT: %.0f%% (%s)", s.Battery.Percent, s.Battery.State)
 	}
 	if extraContent == "" {
-		extraContent = subtleStyle.Render("No GPU/Batt")
+		msg := "No GPU/Batt"
+		if !m.showGPU || !m.showBatt {
+			msg = "GPU/Batt hidden (g/b to toggle)"
+		}
+		extraContent = subtleStyle.Render(msg)
 	}
 	extraCard := cardStyle.Render(lipgloss.JoinVertical(lipgloss.Left, labelStyle.Render("HARDWARE"), extraContent))
 
@@ -374,16 +425,29 @@ func (m *Model) renderDashboard(s model.Sample) string {
 
 	// Right Column (Throttled + IO/FD + PerCore)
 	throttledTable := renderProcessTable(m.sortAndFilter(s.Throttled), 5, secondaryColor)
-	ioLeaders := renderProcessTable(m.topIO(s.Top), 6, warningColor)
-	fdLeaders := renderProcessTable(m.topFD(s.Top), 6, warningColor)
 	coreBlock := renderCoreGrid(m.perCoreHist, 25) // Width of sparklines
+
+	var ioLeaders, fdLeaders string
+	if m.showIOPanels {
+		ioLeaders = renderProcessTable(m.topIO(s.Top), 6, warningColor)
+		fdLeaders = renderProcessTable(m.topFD(s.Top), 6, warningColor)
+	}
 
 	rightColContent := lipgloss.JoinVertical(lipgloss.Left,
 		labelStyle.Foreground(lipgloss.Color(secondaryColor)).Render("THROTTLED (Nice > 0)"),
 		throttledTable,
-		labelStyle.Render("IO TOP (R/W kB/s, FDs)"), ioLeaders,
-		labelStyle.Render("FD TOP"), fdLeaders,
-		labelStyle.Render("CPU CORES"), coreBlock)
+		func() string {
+			if m.showIOPanels {
+				return lipgloss.JoinVertical(lipgloss.Left,
+					labelStyle.Render("IO TOP (R/W kB/s, FDs)"), ioLeaders,
+					labelStyle.Render("FD TOP"), fdLeaders,
+					labelStyle.Render("CPU CORES"), coreBlock)
+			}
+			return lipgloss.JoinVertical(lipgloss.Left,
+				labelStyle.Render("CPU CORES"), coreBlock,
+				subtleStyle.Render("(IO panels hidden; press i to toggle)"))
+		}(),
+	)
 
 	rightCard := cardStyle.Render(rightColContent)
 
@@ -484,6 +548,9 @@ func (m *Model) renderHelp() string {
 		"  s              Toggle sort CPU/MEM",
 		"  /              Filter by substring (enter to apply, esc to cancel)",
 		"  h or ?         Toggle this help",
+		"  g / b / i      Toggle GPU / Battery / IO panels",
+		"  f              Freeze/unfreeze updates",
+		"  I              Show ionice tip for the top process",
 		"  o              Toggle JSON file output (when SRPS_SYSMON_JSON_FILE set)",
 		"",
 		"DASHBOARD PANELS",
@@ -587,6 +654,17 @@ func renderSparklineAuto(values []float64, width int, color string) string {
 	return style.Render(b.String())
 }
 
+func topDevices(devs []model.IODevice, n int) []model.IODevice {
+	sorted := append([]model.IODevice{}, devs...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return (sorted[i].ReadMBs + sorted[i].WriteMBs) > (sorted[j].ReadMBs + sorted[j].WriteMBs)
+	})
+	if len(sorted) > n {
+		sorted = sorted[:n]
+	}
+	return sorted
+}
+
 func renderSparklinePct(values []float64, width int, color string) string {
 	if len(values) == 0 {
 		return strings.Repeat(" ", width)
@@ -636,7 +714,9 @@ func renderProcessTable(procs []model.Process, height int, highlightColor string
 		line := fmt.Sprintf("%-18s %6d %4d %6.1f %6.1f %6.1f %6.1f %5d", cmd, p.PID, p.Nice, p.CPU, p.Memory, p.ReadKBs, p.WriteKBs, p.FDCount)
 
 		style := rowStyle
-		if p.Nice > 0 {
+		if p.FDDiff > 100 {
+			style = style.Foreground(lipgloss.Color(warningColor)).Bold(true)
+		} else if p.Nice > 0 {
 			style = style.Foreground(lipgloss.Color(secondaryColor))
 		} else if count == 0 {
 			style = style.Foreground(lipgloss.Color(highlightColor)).Bold(true)
@@ -693,6 +773,13 @@ func truncate(s string, n int) string {
 		return s[:n-1] + "…"
 	}
 	return s
+}
+
+func onOff(v bool) string {
+	if v {
+		return "on"
+	}
+	return "off"
 }
 
 func (m *Model) sortAndFilter(rows []model.Process) []model.Process {

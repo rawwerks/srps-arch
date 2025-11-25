@@ -17,6 +17,8 @@ type Memory struct {
 	TotalBytes uint64
 	SwapUsed   uint64
 	SwapTotal  uint64
+	Cached     uint64
+	Buffers    uint64
 }
 
 // IO holds disk and network throughput numbers.
@@ -25,6 +27,14 @@ type IO struct {
 	DiskWriteMBs float64
 	NetRxMbps    float64
 	NetTxMbps    float64
+	PerDevice    []IODevice
+}
+
+// IODevice captures per-block-device throughput.
+type IODevice struct {
+	Name     string
+	ReadMBs  float64
+	WriteMBs float64
 }
 
 // GPU holds a single device snapshot.
@@ -53,6 +63,7 @@ type Process struct {
 	FDCount  int
 	ReadKBs  float64
 	WriteKBs float64
+	FDDiff   int
 }
 
 // Cgroup summarizes CPU usage by unit/name.

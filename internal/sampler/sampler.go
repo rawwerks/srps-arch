@@ -32,6 +32,7 @@ type Sampler struct {
 	prevDisk   map[string]disk.IOCountersStat
 	prevNet    []net.IOCountersStat
 	prevProcIO map[int]procIO
+	prevFD     map[int]int
 
 	// Cgroup cache
 	cgroupCache map[int]string
@@ -47,6 +48,7 @@ func New(interval time.Duration) *Sampler {
 		Interval:    interval,
 		prevDisk:    make(map[string]disk.IOCountersStat),
 		prevProcIO:  make(map[int]procIO),
+		prevFD:      make(map[int]int),
 		cgroupCache: make(map[int]string),
 	}
 }
@@ -116,6 +118,8 @@ func (s *Sampler) sample(now time.Time) model.Sample {
 			TotalBytes: memStat.Total,
 			SwapUsed:   swapStat.Used,
 			SwapTotal:  swapStat.Total,
+			Cached:     memStat.Cached,
+			Buffers:    memStat.Buffers,
 		},
 		IO:        ioStat,
 		GPUs:      gpus,
@@ -168,6 +172,7 @@ func (s *Sampler) ioNet() model.IO {
 	// Disk
 	diskCounters, _ := disk.IOCounters()
 	var rdBytesDelta, wrBytesDelta uint64
+	var perDev []model.IODevice
 	for name, st := range diskCounters {
 		if strings.HasPrefix(name, "loop") {
 			continue
@@ -180,13 +185,26 @@ func (s *Sampler) ioNet() model.IO {
 			if st.WriteBytes > prev.WriteBytes {
 				wrBytesDelta += st.WriteBytes - prev.WriteBytes
 			}
+			dt := s.Interval.Seconds()
+			if dt <= 0 {
+				dt = 1
+			}
+			perDev = append(perDev, model.IODevice{
+				Name:     name,
+				ReadMBs:  float64(st.ReadBytes-prev.ReadBytes) / (1024 * 1024) / dt,
+				WriteMBs: float64(st.WriteBytes-prev.WriteBytes) / (1024 * 1024) / dt,
+			})
 		}
 		s.prevDisk[name] = st
 	}
 	dur := s.Interval.Seconds()
+	if dur <= 0 {
+		dur = 1
+	}
 	ioStat := model.IO{
 		DiskReadMBs:  float64(rdBytesDelta) / (1024 * 1024) / dur,
 		DiskWriteMBs: float64(wrBytesDelta) / (1024 * 1024) / dur,
+		PerDevice:    perDev,
 	}
 
 	// Net
@@ -227,6 +245,7 @@ func (s *Sampler) topProcs() (top []model.Process, throttled []model.Process, cg
 			cmd = name
 		}
 		fdCount, _ := p.NumFDs()
+		fdDiff := int(fdCount) - s.prevFD[int(p.Pid)]
 
 		var rRate, wRate float64
 		if ioCounters, err := p.IOCounters(); err == nil && ioCounters != nil {
@@ -249,6 +268,7 @@ func (s *Sampler) topProcs() (top []model.Process, throttled []model.Process, cg
 			FDCount:  int(fdCount),
 			ReadKBs:  rRate,
 			WriteKBs: wRate,
+			FDDiff:   fdDiff,
 		}
 		top = append(top, entry)
 		if nice > 0 {
@@ -282,6 +302,10 @@ func (s *Sampler) topProcs() (top []model.Process, throttled []model.Process, cg
 	}
 
 	s.prevProcIO = newProcIO
+	s.prevFD = make(map[int]int)
+	for _, p := range top {
+		s.prevFD[p.PID] = p.FDCount
+	}
 	return
 }
 
