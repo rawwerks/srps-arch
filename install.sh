@@ -292,6 +292,11 @@ install_ananicy_cpp() {
         apt_install git
     fi
 
+    # Ensure ionice (util-linux) is available for IO priority controls
+    if ! command -v ionice >/dev/null 2>&1; then
+        apt_install util-linux
+    fi
+
     if command -v ananicy-cpp >/dev/null 2>&1; then
         print_success "ananicy-cpp already installed"
         return

@@ -91,6 +91,7 @@ type Model struct {
 	cumulativeCPU map[string]float64
 	throttleCount map[string]int
 	activeTab     int // 0=Dashboard, 1=Analysis
+	showHelp      bool
 
 	jsonFile string
 }
@@ -154,6 +155,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "tab":
 			m.activeTab = (m.activeTab + 1) % 2
+		case "h", "?":
+			m.showHelp = !m.showHelp
 		case "s":
 			if m.sortKey == "cpu" {
 				m.sortKey = "mem"
@@ -233,6 +236,9 @@ func (m *Model) View() string {
 		return "Loading..."
 	}
 	s := m.latest
+	if m.showHelp {
+		return m.renderHelp()
+	}
 
 	// --- Header with Tabs ---
 	filterTxt := ""
@@ -366,21 +372,18 @@ func (m *Model) renderDashboard(s model.Sample) string {
 	procTable := renderProcessTable(m.sortAndFilter(s.Top), availHeight, primaryColor)
 	procCard := cardStyle.Width(55).Height(availHeight).Render(lipgloss.JoinVertical(lipgloss.Left, labelStyle.Render("TOP PROCESSES"), procTable))
 
-	// Right Column (Throttled + PerCore)
-	rightColContent := ""
-
-	// Throttled
-	if len(s.Throttled) > 0 {
-		throttledTable := renderProcessTable(m.sortAndFilter(s.Throttled), 5, secondaryColor)
-		rightColContent = lipgloss.JoinVertical(lipgloss.Left,
-			labelStyle.Foreground(lipgloss.Color(secondaryColor)).Render("THROTTLED (Nice > 0)"),
-			throttledTable,
-			"")
-	}
-
-	// Per Core Grid
+	// Right Column (Throttled + IO/FD + PerCore)
+	throttledTable := renderProcessTable(m.sortAndFilter(s.Throttled), 5, secondaryColor)
+	ioLeaders := renderProcessTable(m.topIO(s.Top), 6, warningColor)
+	fdLeaders := renderProcessTable(m.topFD(s.Top), 6, warningColor)
 	coreBlock := renderCoreGrid(m.perCoreHist, 25) // Width of sparklines
-	rightColContent = lipgloss.JoinVertical(lipgloss.Left, rightColContent, labelStyle.Render("CPU CORES"), coreBlock)
+
+	rightColContent := lipgloss.JoinVertical(lipgloss.Left,
+		labelStyle.Foreground(lipgloss.Color(secondaryColor)).Render("THROTTLED (Nice > 0)"),
+		throttledTable,
+		labelStyle.Render("IO TOP (R/W kB/s, FDs)"), ioLeaders,
+		labelStyle.Render("FD TOP"), fdLeaders,
+		labelStyle.Render("CPU CORES"), coreBlock)
 
 	rightCard := cardStyle.Render(rightColContent)
 
@@ -449,6 +452,50 @@ func (m *Model) getFrequentFlyers(limit int) []string {
 		rows = append(rows, fmt.Sprintf("%-18s %6d", truncate(ss[i].k, 18), ss[i].v))
 	}
 	return rows
+}
+
+func (m *Model) topIO(procs []model.Process) []model.Process {
+	sorted := append([]model.Process{}, procs...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return (sorted[i].ReadKBs + sorted[i].WriteKBs) > (sorted[j].ReadKBs + sorted[j].WriteKBs)
+	})
+	if len(sorted) > 8 {
+		sorted = sorted[:8]
+	}
+	return sorted
+}
+
+func (m *Model) topFD(procs []model.Process) []model.Process {
+	sorted := append([]model.Process{}, procs...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].FDCount > sorted[j].FDCount
+	})
+	if len(sorted) > 8 {
+		sorted = sorted[:8]
+	}
+	return sorted
+}
+
+func (m *Model) renderHelp() string {
+	helpText := []string{
+		"KEYS",
+		"  q / Ctrl+C     Quit",
+		"  tab            Toggle Dashboard / Analysis",
+		"  s              Toggle sort CPU/MEM",
+		"  /              Filter by substring (enter to apply, esc to cancel)",
+		"  h or ?         Toggle this help",
+		"  o              Toggle JSON file output (when SRPS_SYSMON_JSON_FILE set)",
+		"",
+		"DASHBOARD PANELS",
+		"  CPU/MEM/Swap gauges, IO/NET sparklines, GPU/Batt status",
+		"  Top Processes now show Rk/s, Wk/s, FDs",
+		"  IO TOP and FD TOP highlight disk hogs and FD explosions",
+		"",
+		"TIPS",
+		"  Drop IO priority manually: sudo ionice -c3 -p <pid>",
+		"  Throttle CPU-heavy commands: limited <cmd> (uses systemd-run if available)",
+	}
+	return cardStyle.Width(m.width - 4).Render(strings.Join(helpText, "\n"))
 }
 
 func renderSimpleTable(headers []string, rows []string, width int, color string) string {
