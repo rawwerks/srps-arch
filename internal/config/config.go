@@ -42,14 +42,7 @@ func FromFlags(args []string) Config {
 	fs.BoolVar(&cfg.EnableBatt, "battery", cfg.EnableBatt, "enable battery sampling")
 	_ = fs.Parse(args)
 
-	// Prefer new env names, fall back to legacy SRPS_SYSMON_* for compatibility
 	if v := os.Getenv("SRPS_SYSMONI_INTERVAL"); v != "" {
-		if parsed, err := time.ParseDuration(v); err == nil {
-			cfg.Interval = parsed
-		} else if parsed, err2 := time.ParseDuration(v + "s"); err2 == nil {
-			cfg.Interval = parsed
-		}
-	} else if v := os.Getenv("SRPS_SYSMON_INTERVAL"); v != "" {
 		if parsed, err := time.ParseDuration(v); err == nil {
 			cfg.Interval = parsed
 		} else if parsed, err2 := time.ParseDuration(v + "s"); err2 == nil {
@@ -58,12 +51,8 @@ func FromFlags(args []string) Config {
 	}
 	if v := os.Getenv("SRPS_SYSMONI_GPU"); v == "0" {
 		cfg.EnableGPU = false
-	} else if v := os.Getenv("SRPS_SYSMON_GPU"); v == "0" {
-		cfg.EnableGPU = false
 	}
 	if v := os.Getenv("SRPS_SYSMONI_BATT"); v == "0" {
-		cfg.EnableBatt = false
-	} else if v := os.Getenv("SRPS_SYSMON_BATT"); v == "0" {
 		cfg.EnableBatt = false
 	}
 	return cfg

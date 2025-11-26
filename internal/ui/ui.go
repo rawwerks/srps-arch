@@ -197,10 +197,7 @@ func New(cfg config.Config) *Model {
 		selectedProc:  -1,
 		focusedPanel:  0,
 		jsonFile: func() string {
-			if v := os.Getenv("SRPS_SYSMONI_JSON_FILE"); v != "" {
-				return v
-			}
-			return os.Getenv("SRPS_SYSMON_JSON_FILE")
+			return os.Getenv("SRPS_SYSMONI_JSON_FILE")
 		}(),
 	}
 }
@@ -350,9 +347,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.jsonFile = ""
 				m.statusMsg = "JSON output disabled"
 			} else if f := os.Getenv("SRPS_SYSMONI_JSON_FILE"); f != "" {
-				m.jsonFile = f
-				m.statusMsg = fmt.Sprintf("JSON output: %s", f)
-			} else if f := os.Getenv("SRPS_SYSMON_JSON_FILE"); f != "" {
 				m.jsonFile = f
 				m.statusMsg = fmt.Sprintf("JSON output: %s", f)
 			}

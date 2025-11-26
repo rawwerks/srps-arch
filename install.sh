@@ -1140,7 +1140,7 @@ EOF
     fi
 
     # Optional legacy fallback only when explicitly allowed (preserved for backward compat logic if needed, though caught above)
-    if [ ! -x "$sysmon" ] && { [ "${ALLOW_BASH_SYSMONI:-0}" = "1" ] || [ "${ALLOW_BASH_SYSMON:-0}" = "1" ]; }; then
+    if [ ! -x "$sysmon" ] && [ "${ALLOW_BASH_SYSMONI:-0}" = "1" ]; then
         install_bash_sysmoni "$sysmon"
     fi
 
@@ -1697,8 +1697,6 @@ fi
 # Monitoring helpers (only if helpers are available)
 if command -v sysmoni >/dev/null 2>&1; then
   alias sys='sysmoni'
-elif command -v sysmon >/dev/null 2>&1; then
-  alias sys='sysmon'   # legacy name retained if present
 fi
 if command -v check-throttled >/dev/null 2>&1; then
   alias throttled='check-throttled'
