@@ -18,3 +18,9 @@ bd.db
 !*.jsonl
 !metadata.json
 !config.json
+
+# Local version tracking
+.local_version
+
+# Compressed daemon logs
+daemon-*.log.gz
