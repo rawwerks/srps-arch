@@ -4,6 +4,8 @@
 .beads/daemon.log
 .beads/*.left.jsonl
 .beads/*.left.meta.json
+.beads/last-touched
+.beads/.bv.lock
 
 # Go build cache/output
 *.exe
