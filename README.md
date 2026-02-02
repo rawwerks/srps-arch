@@ -1,16 +1,26 @@
 <div align="center">
 
-# 🛡️ System Resource Protection Script (SRPS)
+# 🛡️ SRPS for Arch Linux
 
-**Keep your Linux dev box (or WSL2) responsive under load with priority tuning, sysctl tweaks, and a polished TUI monitor — without killing your workloads.**
+**A port of [System Resource Protection Script](https://github.com/Dicklesworthstone/system_resource_protection_script) for Arch Linux.**
 
-[![Linux](https://img.shields.io/badge/Linux-Debian%2FUbuntu-orange?logo=linux)](https://www.debian.org/)
-[![WSL2](https://img.shields.io/badge/WSL2-Supported-blue?logo=microsoft)](https://learn.microsoft.com/windows/wsl/)
-[![TUI](https://img.shields.io/badge/TUI-Bubble%20Tea-7b5ea7?logo=gnu-bash&logoColor=white)](#%EF%B8%8F-live-system-monitor)
-[![Install](https://img.shields.io/badge/Install-curl%20%7C%20brew%20%7C%20nix-0f9d58)](#-quickstart)
+Keep your Arch dev box responsive under load with priority tuning, sysctl tweaks, and a polished TUI monitor.
+
+[![Arch Linux](https://img.shields.io/badge/Arch-Linux-1793D1?logo=archlinux&logoColor=white)](https://archlinux.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>
+
+---
+
+## Upstream
+
+This is a fork of [Dicklesworthstone/system_resource_protection_script](https://github.com/Dicklesworthstone/system_resource_protection_script) modified to work on Arch Linux with pacman.
+
+**Key differences from upstream:**
+- Uses `pacman` instead of `apt-get`
+- Installs `ananicy-cpp` from official Arch repos (no source build needed)
+- Arch-specific package names (base-devel, pkgconf, etc.)
 
 ---
 
@@ -93,9 +103,9 @@ Re-running is safe: idempotent writes, backups preserved, services restarted as 
 
 | Requirement | Description |
 |-------------|-------------|
-| OS          | Debian/Ubuntu/derivatives or WSL2 with Debian/Ubuntu rootfs |
+| OS          | Arch Linux (systemd) |
 | sudo        | Required (run as regular user with sudo, not root) |
-| apt-get     | Package manager |
+| pacman      | Package manager |
 | bash        | Shell (installer uses bash) |
 | systemd     | Recommended; without it, some features (services/aliases) are skipped |
 

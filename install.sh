@@ -37,8 +37,6 @@ CONFIG_FILE="${SRPS_CONFIG_FILE:-./srps.conf}"
 
 HAS_SYSTEMD=0
 IS_WSL=0
-HAS_APT=0
-APT_UPDATED=0
 SHELL_RC=""
 ACTION="install"
 FORCE="no"
@@ -172,20 +170,23 @@ detect_system() {
         die "sudo is required. Please install/configure sudo for your user."
     fi
 
-    print_info "Validating sudo credentials..."
-    if sudo -n true 2>/dev/null; then
-        print_info "sudo: passwordless access confirmed"
-    else
-        print_info "sudo: password required, validating credentials..."
-        if ! sudo -v; then
-            die "Failed to validate sudo privileges."
+    # Only validate sudo if we're actually going to use it
+    if [ "$DRY_RUN" -eq 0 ]; then
+        print_info "Validating sudo credentials..."
+        if sudo -n true 2>/dev/null; then
+            print_info "sudo: passwordless access confirmed"
+        else
+            print_info "sudo: password required, validating credentials..."
+            if ! sudo -v; then
+                die "Failed to validate sudo privileges."
+            fi
         fi
+    else
+        print_info "[DRY-RUN] Skipping sudo validation"
     fi
 
-    if command -v apt-get >/dev/null 2>&1; then
-        HAS_APT=1
-    else
-        die "This script currently supports only apt-based systems (Debian/Ubuntu/WSL)."
+    if ! command -v pacman >/dev/null 2>&1; then
+        die "This script requires pacman (Arch Linux)."
     fi
 
     if pidof systemd >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
@@ -259,28 +260,13 @@ git_clone_retry() {
     retry_cmd "git clone -q --depth 1 $url $dest" 3
 }
 
-apt_install() {
-    if [ "$HAS_APT" -ne 1 ]; then
-        die "apt is not available but was expected."
+pacman_install() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        print_info "[DRY-RUN] Would install: $*"
+        return 0
     fi
-
-    if [ "$APT_UPDATED" -eq 0 ]; then
-        if maybe_dry_run "Would run: sudo apt-get update"; then
-            :
-        else
-            print_info "Updating package index (apt-get update)..."
-            sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-        fi
-        APT_UPDATED=1
-    fi
-
-    print_info "Installing packages: $*"
-    if maybe_dry_run "Would install: $*"; then
-        return
-    fi
-    local quoted_pkgs
-    quoted_pkgs=$(printf " %q" "$@")
-    retry_cmd "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq${quoted_pkgs} >/dev/null" 3 || die "apt-get install failed for: $*"
+    print_info "Installing: $*"
+    sudo pacman -S --needed --noconfirm "$@"
 }
 
 # --------------- Step 1: Install Ananicy-cpp -----------------
@@ -292,21 +278,36 @@ install_ananicy_cpp() {
         return
     fi
 
-    if ! command -v git >/dev/null 2>&1; then
-        apt_install git
-    fi
-
-    # Ensure ionice (util-linux) is available for IO priority controls
-    if ! command -v ionice >/dev/null 2>&1; then
-        apt_install util-linux
-    fi
-
     if command -v ananicy-cpp >/dev/null 2>&1; then
         print_success "ananicy-cpp already installed"
         return
     fi
 
-    apt_install cmake build-essential libsystemd-dev libfmt-dev libspdlog-dev nlohmann-json3-dev pkg-config
+    # Try repo package first (Arch has ananicy-cpp in extra)
+    if [ "$DRY_RUN" -eq 1 ]; then
+        print_info "[plan mode] Would attempt repo install: ananicy-cpp"
+    fi
+    if pacman_install ananicy-cpp; then
+        if [ "$DRY_RUN" -eq 1 ]; then
+            print_info "[plan mode] ananicy-cpp would be installed from repo"
+        else
+            print_success "Installed ananicy-cpp from repo"
+        fi
+        return
+    fi
+
+    print_warning "Repo install failed, building from source..."
+
+    if ! command -v git >/dev/null 2>&1; then
+        pacman_install git
+    fi
+
+    # Ensure ionice (util-linux) is available for IO priority controls
+    if ! command -v ionice >/dev/null 2>&1; then
+        pacman_install util-linux
+    fi
+
+    pacman_install cmake base-devel systemd fmt spdlog nlohmann-json pkgconf
 
     print_info "Building ananicy-cpp from source (GitLab)..."
     if maybe_dry_run "Would clone, build, and install ananicy-cpp from source"; then
@@ -1093,14 +1094,9 @@ EOF
 
         # 2) Build from source tarball (needs Go)
         if ! command -v go >/dev/null 2>&1; then
-            if command -v apt-get >/dev/null 2>&1; then
-                print_info "Installing Go toolchain (apt) to build sysmoni-go..."
-                if ! sudo apt-get update -qq || ! sudo apt-get install -y -qq golang-go; then
-                    print_warning "Failed to install Go toolchain; cannot build sysmoni-go"
-                    return 1
-                fi
-            else
-                print_warning "Go toolchain missing and apt-get unavailable; cannot build sysmoni-go"
+            print_info "Installing Go toolchain (pacman) to build sysmoni-go..."
+            if ! pacman_install go; then
+                print_warning "Failed to install Go toolchain; cannot build sysmoni-go"
                 return 1
             fi
         fi
@@ -1917,7 +1913,7 @@ main_install() {
     echo -e "  Systemd:  $systemd_str"
     echo -e "  WSL:      $wsl_str"
     echo -e "  Power:    $power_str"
-    echo -e "  Package:  apt-get\n"
+    echo -e "  Package:  pacman\n"
 
     install_ananicy_cpp
     configure_ananicy_rules
